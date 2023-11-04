@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_manager/platform_tags.dart';
 import 'package:http/http.dart' as http;
@@ -16,13 +17,14 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       title: 'Flutter Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter NFC app'),
+      debugShowCheckedModeBanner: false,
+      // theme: ThemeData(
+      //   // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      //   useMaterial3: true,
+      // ),
+      home: MyHomePage(title: 'Flutter NFC app'),
     );
   }
 }
@@ -39,6 +41,13 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   ValueNotifier<dynamic> result = ValueNotifier(null);
   bool isAvailable = false;
+  String initialWord = "Device is ready, tap your card";
+  Color light = const Color.fromARGB(255, 255, 255, 255);
+  String? startingTime;
+  String? endTime;
+  String? previousBalance;
+  String? currentBalance;
+  String? cardNumber;
   late String token;
 
   String _byteArrayToHexString(List<int> byteArray) {
@@ -93,6 +102,13 @@ class _MyHomePageState extends State<MyHomePage> {
       NfcManager.instance.startSession(
         onDiscovered: (NfcTag tag) async {
           try {
+            DateTime now = DateTime.now();
+            setState(() {
+              startingTime =
+                  "Start time: ${now.toLocal().toLocal().toString()}";
+              initialWord = "Hold your card on device";
+              light = Colors.yellow;
+            });
             String authenticationKey = '';
             result.value = tag.data;
             print("discoveredTag $tag");
@@ -100,6 +116,9 @@ class _MyHomePageState extends State<MyHomePage> {
             final tech = MifareClassic.from(tag);
             final cardId = _byteArrayToHexString(tech!.identifier);
             print("==cardId==>$cardId");
+            setState(() {
+              cardNumber = cardId;
+            });
 
             final Uri sesscionUri = Uri.parse(
                 'https://card-city.tapandgoticketing.co.rw/api/v1/card-pay');
@@ -114,25 +133,15 @@ class _MyHomePageState extends State<MyHomePage> {
             final statusCode = response.statusCode;
             final sessionResponse = json.decode(response.body);
 
-            print('sessionRespnse==> $sessionResponse');
-
-            //       const sectors =
-            //   sessionData.data.data.session_data.content.command.authInfo.sectors;
-            // const clientSessionId =
-            //   sessionData.data.data.session_data.header.clientSessionId;
-            // const serverSessionId =
-            //   sessionData.data.data.session_data.header.serverSessionId;
-            // console.log({sectors, clientSessionId, serverSessionId});
-
             final sectors = sessionResponse['data']['session_data']['content']
                 ['command']['authInfo']['sectors'];
             final clientSessionId = sessionResponse['data']['session_data']
                 ['header']['clientSessionId'];
             final serverSessionId = sessionResponse['data']['session_data']
                 ['header']['serverSessionId'];
-            print('===sectors==> $sectors');
-            print("clientSessionId=> $clientSessionId");
-            print("==serverSessionId==> $serverSessionId");
+            // print('===sectors==> $sectors');
+            // print("clientSessionId=> $clientSessionId");
+            // print("==serverSessionId==> $serverSessionId");
 
             final mifareClassic = MifareClassic(
                 tag: tag,
@@ -146,9 +155,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
             List command = [];
             for (final sec in sectors) {
-              print("==single sector==> $sec");
+              // print("==single sector==> $sec");
 
-              print("===reaching here===>");
+              // print("===reaching here===>");
               authenticationKey = sec['key'];
               final Uint8List authKey = _hexStringToByteArray(sec['key']);
               final bool authenticated =
@@ -174,8 +183,10 @@ class _MyHomePageState extends State<MyHomePage> {
               command.add(blockCommand);
             }
 
+            print('---command--->$command');
+
             Map payPayload = {
-              'amount': 0,
+              'amount': 2,
               'card_number': cardId,
               'session_data': {
                 'header': {
@@ -200,42 +211,73 @@ class _MyHomePageState extends State<MyHomePage> {
             final payStatusCode = payResponse.statusCode;
             final payResponseData = json.decode(payResponse.body);
 
-            print('==pay-complete-statusCode $payStatusCode');
-            print('==pay-complete-reponse==> $payResponseData');
+            // print('==pay-complete-statusCode $payStatusCode');
+            print(
+                '==previous-balance==>${payResponseData['data']['card_content']['previousBalance']}');
+            print(
+                '==previous-balance==>${payResponseData['data']['card_content']['currentBalance']}');
+            setState(() {
+              previousBalance =
+                  "Previous Balance: ${payResponseData['data']['card_content']['previousBalance']}";
+              currentBalance =
+                  "Current Balance: ${payResponseData['data']['card_content']['currentBalance']}";
+            });
 
             final sectorsToWrite =
                 payResponseData['data']['card_content']['command']['sectors'];
-            print('==sectorsToWrite==> $sectorsToWrite');
+            // print('==sectorsToWrite==> $sectorsToWrite');
 
             // mifareClassic.setTimeout()
 
+            print('==sectorsToWrite==>$sectorsToWrite');
             for (final sec in sectorsToWrite) {
-              print('---getting here---> ${sec['no']}');
-              print('---getting-------+>${sec['blocks']}');
+              // print('---getting here---> ${sec['no']}');
+              // print('---getting-------+>${sec['blocks']}');
               // final Uint8List authKey = _hexStringToByteArray(sec['key']);
               // final bool authenticated =
               //     await mifareClassic.authenticateSectorWithKeyB(
               //         sectorIndex: sec['no'], key: authKey);
               // print("--authenticated-->, $authenticated");
-              print('===getting-length==>${sec['blocks'].length}');
+              // print('===getting-length==>${sec['blocks'].length}');
 
               for (int i = 0; i < sec['blocks'].length; i++) {
-                print('--getting-data-write-->');
+                // print('--getting-data-write-->');
                 int bIndex =
                     await mifareClassic.sectorToBlock(sectorIndex: sec['no']);
                 Uint8List bytesData =
                     _hexStringToByteArray(sec['blocks'][i]['data']);
-                print("===authKeys==>$authenticationKey");
+                // print("===authKeys==>$authenticationKey");
                 final Uint8List authKey =
                     _hexStringToByteArray(authenticationKey);
                 final bool authenticated =
                     await mifareClassic.authenticateSectorWithKeyB(
                         sectorIndex: sec['no'], key: authKey);
-                print("===authenticated-to-write===>$authenticated");
+                // print("===authenticated-to-write===>$authenticated");
+                // print("==blockToWrite==>${bIndex + i}");
                 await mifareClassic.writeBlock(
                     blockIndex: bIndex + i, data: bytesData);
               }
             }
+
+            DateTime endedTime = DateTime.now();
+            setState(() {
+              initialWord = "You can remove your card";
+              endTime = "End time: ${endedTime.toLocal().toLocal().toString()}";
+              light = Colors.green;
+            });
+
+            Future.delayed(const Duration(seconds: 10), () {
+              setState(() {
+                initialWord = "Device is ready, tap your card";
+                light = const Color.fromARGB(255, 255, 255, 255);
+                cardNumber = null;
+                startingTime = null;
+                endTime = null;
+                previousBalance = null;
+                currentBalance = null;
+              });
+              _startSession();
+            });
 
             print("==Now is done===>");
 
@@ -247,6 +289,24 @@ class _MyHomePageState extends State<MyHomePage> {
             await NfcManager.instance
                 .stopSession()
                 .catchError((_) {/* no op */});
+            DateTime endedTime = DateTime.now();
+            setState(() {
+              initialWord = "Error occored";
+              endTime = "End time: ${endedTime.toLocal().toLocal().toString()}";
+              light = Colors.red;
+            });
+            Future.delayed(const Duration(seconds: 10), () {
+              setState(() {
+                initialWord = "Device is ready, tap your card";
+                light = const Color.fromARGB(255, 255, 255, 255);
+                cardNumber = null;
+                startingTime = null;
+                endTime = null;
+                previousBalance = null;
+                currentBalance = null;
+              });
+              _startSession();
+            });
             print("startSessionError ${e.toString()}");
             // setState(() => _errorMessage = '$e');
           }
@@ -258,6 +318,8 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+        overlays: [SystemUiOverlay.bottom]);
     _getToken();
     _startSession();
   }
@@ -265,23 +327,84 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ),
       body: isAvailable
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text(
-                    'This is my nfc app',
-                  ),
-                  // Text(
-                  //   '$_counter',
-                  //   style: Theme.of(context).textTheme.headlineMedium,
-                  // ),
-                ],
+          ? Center(
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                margin: const EdgeInsets.symmetric(vertical: 20.0),
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: BoxDecoration(
+                    color: const Color.fromARGB(158, 101, 184, 216),
+                    border: Border.all(width: 2.0, color: Colors.blue),
+                    borderRadius:
+                        const BorderRadius.all(Radius.circular(12.0))),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          cardNumber ?? "",
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 18),
+                        ),
+                        const SizedBox(
+                          height: 12,
+                        ),
+                        Text(
+                          initialWord,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 18),
+                        ),
+                        const SizedBox(
+                          height: 12,
+                        ),
+                        Text(
+                          startingTime ?? "",
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          endTime ?? "",
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(
+                          height: 12,
+                        ),
+                        Text(
+                          previousBalance ?? "",
+                          style: const TextStyle(fontWeight: FontWeight.w400),
+                        ),
+                        Text(
+                          currentBalance ?? "",
+                          style: const TextStyle(fontWeight: FontWeight.w400),
+                        ),
+                      ],
+                    ),
+                    SizedBox(
+                      height: 40,
+                      child: Center(
+                        child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            shrinkWrap: true,
+                            itemCount: 4,
+                            itemBuilder: (context, index) {
+                              return Container(
+                                width: 30,
+                                height: 30,
+                                margin: const EdgeInsets.all(4.0),
+                                decoration: BoxDecoration(
+                                    color: light,
+                                    border: Border.all(
+                                        color: Colors.blue, width: 1),
+                                    borderRadius: const BorderRadius.all(
+                                        Radius.circular(10.0))),
+                              );
+                            }),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           : const Center(
