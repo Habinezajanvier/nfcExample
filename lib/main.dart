@@ -48,6 +48,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String? previousBalance;
   String? currentBalance;
   String? cardNumber;
+  String baseUrl = "https://45d5-105-178-32-108.ngrok-free.app";
   late String token;
 
   String _byteArrayToHexString(List<int> byteArray) {
@@ -72,8 +73,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _getToken() async {
     try {
-      final Uri loginUri = Uri.parse(
-          'https://card-city.tapandgoticketing.co.rw/api/v1/operators/login');
+      final Uri loginUri = Uri.parse('$baseUrl/api/v1/operators/login');
 
       final response = await http.post(loginUri,
           headers: {
@@ -113,15 +113,14 @@ class _MyHomePageState extends State<MyHomePage> {
             result.value = tag.data;
             print("discoveredTag $tag");
             print(result);
-            final tech = MifareClassic.from(tag);
-            final cardId = _byteArrayToHexString(tech!.identifier);
+            MifareClassic? tech = MifareClassic.from(tag);
+            String cardId = _byteArrayToHexString(tech!.identifier);
             print("==cardId==>$cardId");
             setState(() {
               cardNumber = cardId;
             });
 
-            final Uri sesscionUri = Uri.parse(
-                'https://card-city.tapandgoticketing.co.rw/api/v1/card-pay');
+            final Uri sesscionUri = Uri.parse('$baseUrl/api/v1/card-pay');
 
             final response = await http.post(sesscionUri,
                 headers: {
@@ -198,8 +197,7 @@ class _MyHomePageState extends State<MyHomePage> {
               'card_command': {'sectors': command}
             };
 
-            final Uri payUri = Uri.parse(
-                'https://card-city.tapandgoticketing.co.rw/api/v1/card-pay-complete');
+            final Uri payUri = Uri.parse('$baseUrl/api/v1/card-pay-complete');
 
             final payResponse = await http.post(payUri,
                 headers: {
