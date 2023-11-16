@@ -48,7 +48,9 @@ class _MyHomePageState extends State<MyHomePage> {
   String? previousBalance;
   String? currentBalance;
   String? cardNumber;
-  String baseUrl = "https://45d5-105-178-32-108.ngrok-free.app";
+  String baseUrl = "https://b5c7-105-178-104-197.ngrok-free.app";
+  // String baseUrl = "https://card-city.tapandgoticketing.co.rw";
+  // String baseUrl = "https://interoperability.tapandgoticketing.co.rw";
   late String token;
 
   String _byteArrayToHexString(List<int> byteArray) {
@@ -109,6 +111,7 @@ class _MyHomePageState extends State<MyHomePage> {
               initialWord = "Hold your card on device";
               light = Colors.yellow;
             });
+            print("=====>$startingTime");
             String authenticationKey = '';
             result.value = tag.data;
             print("discoveredTag $tag");
@@ -120,17 +123,24 @@ class _MyHomePageState extends State<MyHomePage> {
               cardNumber = cardId;
             });
 
+            DateTime firstApiCall = DateTime.now();
+            print(
+                '==sending-first-api==> ${firstApiCall.toLocal().toLocal().toString()}');
+
             final Uri sesscionUri = Uri.parse('$baseUrl/api/v1/card-pay');
+            print('Start-session-url===> $sesscionUri');
 
             final response = await http.post(sesscionUri,
                 headers: {
                   'Content-Type': 'application/json',
                   'x-auth': token,
                 },
-                body: jsonEncode({'card_number': cardId}));
+                body: jsonEncode({'card_number': cardId, 'amount': 2500}));
 
             final statusCode = response.statusCode;
             final sessionResponse = json.decode(response.body);
+
+            print("===this is the response===>$sessionResponse");
 
             final sectors = sessionResponse['data']['session_data']['content']
                 ['command']['authInfo']['sectors'];
@@ -153,6 +163,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 timeout: tech.timeout);
 
             List command = [];
+            DateTime endOfSession = DateTime.now();
+            print(
+                '==starting to read==> ${endOfSession.toLocal().toLocal().toString()}');
             for (final sec in sectors) {
               // print("==single sector==> $sec");
 
@@ -185,7 +198,8 @@ class _MyHomePageState extends State<MyHomePage> {
             print('---command--->$command');
 
             Map payPayload = {
-              'amount': 2,
+              'amount': 2500,
+              'operatorCompany': 'EWAKA',
               'card_number': cardId,
               'session_data': {
                 'header': {
@@ -197,7 +211,11 @@ class _MyHomePageState extends State<MyHomePage> {
               'card_command': {'sectors': command}
             };
 
-            final Uri payUri = Uri.parse('$baseUrl/api/v1/card-pay-complete');
+            final Uri payUri = Uri.parse('$baseUrl/api/v1/ewaka-pay-complete');
+            print("==pay-complete-uri==>$payUri");
+            DateTime startingPayment = DateTime.now();
+            print(
+                '==Sending the request==> ${startingPayment.toLocal().toLocal().toString()}');
 
             final payResponse = await http.post(payUri,
                 headers: {
@@ -209,80 +227,109 @@ class _MyHomePageState extends State<MyHomePage> {
             final payStatusCode = payResponse.statusCode;
             final payResponseData = json.decode(payResponse.body);
 
-            // print('==pay-complete-statusCode $payStatusCode');
+            DateTime endOfPayment = DateTime.now();
             print(
-                '==previous-balance==>${payResponseData['data']['card_content']['previousBalance']}');
-            print(
-                '==previous-balance==>${payResponseData['data']['card_content']['currentBalance']}');
-            setState(() {
-              previousBalance =
-                  "Previous Balance: ${payResponseData['data']['card_content']['previousBalance']}";
-              currentBalance =
-                  "Current Balance: ${payResponseData['data']['card_content']['currentBalance']}";
-            });
+                '==Getting-payment-response==> ${endOfPayment.toLocal().toLocal().toString()}');
 
-            final sectorsToWrite =
-                payResponseData['data']['card_content']['command']['sectors'];
-            // print('==sectorsToWrite==> $sectorsToWrite');
-
-            // mifareClassic.setTimeout()
-
-            print('==sectorsToWrite==>$sectorsToWrite');
-            for (final sec in sectorsToWrite) {
-              // print('---getting here---> ${sec['no']}');
-              // print('---getting-------+>${sec['blocks']}');
-              // final Uint8List authKey = _hexStringToByteArray(sec['key']);
-              // final bool authenticated =
-              //     await mifareClassic.authenticateSectorWithKeyB(
-              //         sectorIndex: sec['no'], key: authKey);
-              // print("--authenticated-->, $authenticated");
-              // print('===getting-length==>${sec['blocks'].length}');
-
-              for (int i = 0; i < sec['blocks'].length; i++) {
-                // print('--getting-data-write-->');
-                int bIndex =
-                    await mifareClassic.sectorToBlock(sectorIndex: sec['no']);
-                Uint8List bytesData =
-                    _hexStringToByteArray(sec['blocks'][i]['data']);
-                // print("===authKeys==>$authenticationKey");
-                final Uint8List authKey =
-                    _hexStringToByteArray(authenticationKey);
-                final bool authenticated =
-                    await mifareClassic.authenticateSectorWithKeyB(
-                        sectorIndex: sec['no'], key: authKey);
-                // print("===authenticated-to-write===>$authenticated");
-                // print("==blockToWrite==>${bIndex + i}");
-                await mifareClassic.writeBlock(
-                    blockIndex: bIndex + i, data: bytesData);
-              }
-            }
-
-            DateTime endedTime = DateTime.now();
-            setState(() {
-              initialWord = "You can remove your card";
-              endTime = "End time: ${endedTime.toLocal().toLocal().toString()}";
-              light = Colors.green;
-            });
-
-            Future.delayed(const Duration(seconds: 10), () {
+            print('==pay-complete-statusCode ${payResponseData['message']}');
+            print('==pay-complete-statusCode $payStatusCode');
+            // print(
+            //     '==previous-balance==>${payResponseData['data']['card_content']['previousBalance']}');
+            // print(
+            //     '==previous-balance==>${payResponseData['data']['card_content']['currentBalance']}');
+            if (payStatusCode != 200) {
+              await NfcManager.instance.stopSession();
               setState(() {
-                initialWord = "Device is ready, tap your card";
-                light = const Color.fromARGB(255, 255, 255, 255);
-                cardNumber = null;
-                startingTime = null;
-                endTime = null;
-                previousBalance = null;
-                currentBalance = null;
+                initialWord = payResponseData['message'];
+                endTime =
+                    "End time: ${endOfPayment.toLocal().toLocal().toString()}";
+                light = Colors.red;
               });
-              _startSession();
-            });
+              Future.delayed(const Duration(seconds: 4), () {
+                setState(() {
+                  initialWord = "Device is ready, tap your card";
+                  light = const Color.fromARGB(255, 255, 255, 255);
+                  cardNumber = null;
+                  startingTime = null;
+                  endTime = null;
+                  previousBalance = null;
+                  currentBalance = null;
+                });
+                _startSession();
+              });
+            } else {
+              setState(() {
+                previousBalance =
+                    "Previous Balance: ${payResponseData['data']['card_content']['previousBalance']}";
+                currentBalance =
+                    "Current Balance: ${payResponseData['data']['card_content']['currentBalance']}";
+              });
 
-            print("==Now is done===>");
+              final sectorsToWrite =
+                  payResponseData['data']['card_content']['command']['sectors'];
+              // print('==sectorsToWrite==> $sectorsToWrite');
 
-            if (result == null) return;
-            await NfcManager.instance.stopSession();
-            // _startSession();
-            // setState(() => _alertMessage = result);
+              // mifareClassic.setTimeout()
+
+              print('==sectorsToWrite==>$sectorsToWrite');
+              for (final sec in sectorsToWrite) {
+                // print('---getting here---> ${sec['no']}');
+                // print('---getting-------+>${sec['blocks']}');
+                // final Uint8List authKey = _hexStringToByteArray(sec['key']);
+                // final bool authenticated =
+                //     await mifareClassic.authenticateSectorWithKeyB(
+                //         sectorIndex: sec['no'], key: authKey);
+                // print("--authenticated-->, $authenticated");
+                // print('===getting-length==>${sec['blocks'].length}');
+
+                for (int i = 0; i < sec['blocks'].length; i++) {
+                  // print('--getting-data-write-->');
+                  int bIndex =
+                      await mifareClassic.sectorToBlock(sectorIndex: sec['no']);
+                  Uint8List bytesData =
+                      _hexStringToByteArray(sec['blocks'][i]['data']);
+                  // print("===authKeys==>$authenticationKey");
+                  final Uint8List authKey =
+                      _hexStringToByteArray(authenticationKey);
+                  final bool authenticated =
+                      await mifareClassic.authenticateSectorWithKeyB(
+                          sectorIndex: sec['no'], key: authKey);
+                  print("===authenticated-to-write===>$authenticated");
+                  print("==blockToWrite==>${bIndex + i}");
+                  await mifareClassic.writeBlock(
+                      blockIndex: bIndex + i, data: bytesData);
+                }
+              }
+
+              DateTime endedTime = DateTime.now();
+              setState(() {
+                initialWord = "You can remove your card";
+                endTime =
+                    "End time: ${endedTime.toLocal().toLocal().toString()}";
+                light = Colors.green;
+              });
+              print(endTime);
+
+              Future.delayed(const Duration(seconds: 4), () {
+                setState(() {
+                  initialWord = "Device is ready, tap your card";
+                  light = const Color.fromARGB(255, 255, 255, 255);
+                  cardNumber = null;
+                  startingTime = null;
+                  endTime = null;
+                  previousBalance = null;
+                  currentBalance = null;
+                });
+                _startSession();
+              });
+
+              print("==Now is done===>");
+
+              if (result == null) return;
+              await NfcManager.instance.stopSession();
+              // _startSession();
+              // setState(() => _alertMessage = result);
+            }
           } catch (e) {
             await NfcManager.instance
                 .stopSession()
@@ -293,7 +340,7 @@ class _MyHomePageState extends State<MyHomePage> {
               endTime = "End time: ${endedTime.toLocal().toLocal().toString()}";
               light = Colors.red;
             });
-            Future.delayed(const Duration(seconds: 10), () {
+            Future.delayed(const Duration(seconds: 4), () {
               setState(() {
                 initialWord = "Device is ready, tap your card";
                 light = const Color.fromARGB(255, 255, 255, 255);
