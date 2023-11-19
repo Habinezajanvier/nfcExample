@@ -48,9 +48,9 @@ class _MyHomePageState extends State<MyHomePage> {
   String? previousBalance;
   String? currentBalance;
   String? cardNumber;
-  String baseUrl = "https://b5c7-105-178-104-197.ngrok-free.app";
+  // String baseUrl = "https://b5c7-105-178-104-197.ngrok-free.app";
   // String baseUrl = "https://card-city.tapandgoticketing.co.rw";
-  // String baseUrl = "https://interoperability.tapandgoticketing.co.rw";
+  String baseUrl = "https://interoperability.tapandgoticketing.co.rw";
   late String token;
 
   String _byteArrayToHexString(List<int> byteArray) {
@@ -389,6 +389,16 @@ class _MyHomePageState extends State<MyHomePage> {
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
+                        const Text(
+                          "PAY WITH YOUR TAB&GO CARD",
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                              color: Color.fromARGB(255, 2, 8, 118)),
+                        ),
+                        const SizedBox(
+                          height: 12,
+                        ),
                         Text(
                           cardNumber ?? "",
                           style: const TextStyle(
@@ -414,15 +424,16 @@ class _MyHomePageState extends State<MyHomePage> {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(
-                          height: 12,
+                          height: 24,
                         ),
-                        Text(
-                          previousBalance ?? "",
-                          style: const TextStyle(fontWeight: FontWeight.w400),
-                        ),
+                        // Text(
+                        //   previousBalance ?? "",
+                        //   style: const TextStyle(fontWeight: FontWeight.w400),
+                        // ),
                         Text(
                           currentBalance ?? "",
-                          style: const TextStyle(fontWeight: FontWeight.w400),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w400, fontSize: 17),
                         ),
                       ],
                     ),
